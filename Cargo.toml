@@ -1,0 +1,27 @@
+[package]
+name = "auto-impl-ops"
+version = "0.1.0"
+authors = ["Toru3 <ryuutet@gmail.com>"]
+edition = "2021"
+description = "semi-automatic implementation proc-macro for binary operations"
+license = "AGPL-3.0-or-later"
+documentation = "https://docs.rs/auto-impl-ops/"
+repository = "https://gitlab.com/Toru3/auto-impl-ops"
+readme = "README.md"
+keywords = ["macro", "automatic", "implementation", "operator", "overload"]
+categories = ["development-tools", "rust-patterns"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+derive-syn-parse = "0.1.5"
+proc-macro2 = "1.0.40"
+quote = "1.0.20"
+strum = { version = "0.24.1", features = ["derive"] }
+syn = { version = "1.0.98", features = ["full", "extra-traits"] }
+take_mut = { version = "0.2.2", optional = true }
+
+[dev-dependencies]
+num-traits = "0.2.15"
+pretty_assertions = "1.2.1"
