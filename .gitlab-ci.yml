@@ -1,0 +1,20 @@
+image: "rust:latest"
+
+.run_test: &run_test
+  script:
+    - rustup update
+    - rustup component add rustfmt clippy
+    - rustup --version && rustc --version && cargo --version
+    - cargo fmt --all --check
+    - cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+    - cargo test --workspace --all-targets --all-features
+
+test:stable:
+  <<: *run_test
+  before_script:
+    - rustup default stable
+
+test:beta:
+  <<: *run_test
+  before_script:
+    - rustup default beta
