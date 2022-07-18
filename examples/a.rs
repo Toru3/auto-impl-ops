@@ -71,7 +71,7 @@ impl<'a> AddAssign<&'a B> for B {
 }
 
 #[auto_ops]
-impl<'a, M> Mul for &'a A<M>
+impl<M> Mul for &A<M>
 where
     M: Sized + Zero,
     for<'x> &'x M: Mul<Output = M>,
@@ -83,7 +83,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> Div<&'a A<M>> for A<M>
+impl<M> Div<&A<M>> for A<M>
 where
     M: Sized + Zero,
     for<'x> &'x M: Div<Output = M>,
