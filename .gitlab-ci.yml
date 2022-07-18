@@ -7,7 +7,7 @@ image: "rust:latest"
     - rustup --version && rustc --version && cargo --version
     - cargo fmt --all --check
     - cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
-    - cargo test --workspace --all-targets --all-features
+    - cargo test --workspace
 
 test:stable:
   <<: *run_test
