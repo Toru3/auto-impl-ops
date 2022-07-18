@@ -1,5 +1,5 @@
-use num_traits::*;
 use auto_impl_ops::*;
+use num_traits::*;
 use std::ops::*;
 
 #[derive(Clone, Default)]
