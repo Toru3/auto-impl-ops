@@ -13,7 +13,7 @@ image: "rust:latest"
     - rustup component add rustfmt clippy
     - rustup --version && rustc --version && cargo --version
     - time cargo fetch
-    - cargo fmt --all --check --verbose
+    - cargo fmt --all --verbose -- --check
     - cargo test --workspace
     - cargo clippy --workspace --all-targets --all-features -- -D warnings
     - cargo test --workspace --all-targets
