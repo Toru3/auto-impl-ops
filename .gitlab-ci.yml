@@ -2,13 +2,33 @@ image: "rust:latest"
 
 .run_test: &run_test
   script:
+    - if [ "x$DISABLE_CACHE" != "xtrue" ]; then
+    -     export CARGO_HOME="$CI_PROJECT_DIR/cargo"
+    -     mkdir -p $CARGO_HOME target_cache
+    -     ln -s /usr/local/cargo/bin $CARGO_HOME/bin
+    -     ln -s /usr/local/cargo/env $CARGO_HOME/env
+    -     ln -s target_cache target
+    - fi
     - rustup update
     - rustup component add rustfmt clippy
     - rustup --version && rustc --version && cargo --version
-    - cargo fmt --all --check
-    - cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+    - time cargo fetch
+    - cargo fmt --all --check --verbose
     - cargo test --workspace
+    - cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - cargo test --workspace --all-targets
+  cache:
+    - key: "crates.io"
+      paths:
+        - cargo/bin/
+        - cargo/registry/index/
+        - cargo/registry/cache/
+        - cargo/git/db/
+    - key: "target"
+      paths:
+        - target_cache/
 
+# Use cargo to test the project
 test:stable:
   <<: *run_test
   before_script:
@@ -18,3 +38,8 @@ test:beta:
   <<: *run_test
   before_script:
     - rustup default beta
+
+test:msrv:
+  <<: *run_test
+  before_script:
+    - rustup default 1.54.0

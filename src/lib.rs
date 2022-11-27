@@ -328,7 +328,7 @@ impl Parse for OpTrait {
 }
 impl ToTokens for OpTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append(format_ident!("{self}"));
+        tokens.append(Ident::new(&self.to_string(), Span::call_site()));
     }
 }
 

@@ -2,7 +2,7 @@
 name = "auto-impl-ops"
 version = "0.1.0"
 authors = ["Toru3 <ryuutet@gmail.com>"]
-edition = "2021"
+edition = "2018"
 description = "semi-automatic implementation proc-macro for binary operations"
 license = "AGPL-3.0-or-later"
 documentation = "https://docs.rs/auto-impl-ops/"
@@ -10,6 +10,7 @@ repository = "https://gitlab.com/Toru3/auto-impl-ops"
 readme = "README.md"
 keywords = ["macro", "automatic", "implementation", "operator", "overload"]
 categories = ["development-tools", "rust-patterns"]
+rust-version = "1.54"
 
 [lib]
 proc-macro = true
