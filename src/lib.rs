@@ -50,7 +50,13 @@ fn ref_assign(implement: &OpImpl, op: OpTrait, rhs_type: &TypeReference) -> Resu
     let ref_self_type = add_reference(implement.self_type.clone(), rhs_type.clone());
     let orig_where_clause = &implement.where_clause;
     let where_clause = if let Some(x) = &implement.where_clause {
-        x.to_token_stream()
+        if x.predicates.trailing_punct() {
+            x.to_token_stream()
+        } else {
+            quote! {
+                #x,
+            }
+        }
     } else {
         quote! {where}
     };
@@ -172,7 +178,13 @@ fn non_ref_ref(
     let generics = &implement.generics;
     let orig_where_clause = &implement.where_clause;
     let where_clause = if let Some(x) = &implement.where_clause {
-        x.to_token_stream()
+        if x.predicates.trailing_punct() {
+            x.to_token_stream()
+        } else {
+            quote! {
+                #x,
+            }
+        }
     } else {
         quote! {where}
     };
