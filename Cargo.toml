@@ -17,12 +17,12 @@ proc-macro = true
 
 [dependencies]
 derive-syn-parse = "0.1.5"
-proc-macro2 = "1.0.40"
-quote = "1.0.20"
+proc-macro2 = "1.0.51"
+quote = "1.0.23"
 strum = { version = "0.24.1", features = ["derive"] }
-syn = { version = "1.0.98", features = ["full", "extra-traits"] }
+syn = { version = "1.0.107", features = ["full", "extra-traits"] }
 take_mut = { version = "0.2.2", optional = true }
 
 [dev-dependencies]
 num-traits = "0.2.15"
-pretty_assertions = "1.2.1"
+pretty_assertions = "1.3.0"
