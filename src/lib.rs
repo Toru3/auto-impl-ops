@@ -20,6 +20,20 @@ fn add_reference(target: Type, ref_: TypeReference) -> TypeReference {
     out
 }
 
+fn generate_where_clause(where_clause: &Option<WhereClause>) -> TokenStream {
+    if let Some(x) = where_clause {
+        if x.predicates.trailing_punct() {
+            x.to_token_stream()
+        } else {
+            quote! {
+                #x,
+            }
+        }
+    } else {
+        quote! {where}
+    }
+}
+
 fn ref_assign(implement: &OpImpl, op: OpTrait, rhs_type: &TypeReference) -> Result<TokenStream> {
     let mut no_ref_impl = implement.clone();
     *no_ref_impl.op_trait.arg.as_mut().unwrap() = remove_reference(rhs_type).clone();
@@ -49,17 +63,7 @@ fn ref_assign(implement: &OpImpl, op: OpTrait, rhs_type: &TypeReference) -> Resu
     let self_type = &implement.self_type;
     let ref_self_type = add_reference(implement.self_type.clone(), rhs_type.clone());
     let orig_where_clause = &implement.where_clause;
-    let where_clause = if let Some(x) = &implement.where_clause {
-        if x.predicates.trailing_punct() {
-            x.to_token_stream()
-        } else {
-            quote! {
-                #x,
-            }
-        }
-    } else {
-        quote! {where}
-    };
+    let where_clause = generate_where_clause(&implement.where_clause);
     let fn_name_non_assign = op_non_assign.to_func_ident();
     let rr_rhs_type = remove_reference(rhs_type);
     let t = quote! {
@@ -177,17 +181,7 @@ fn non_ref_ref(
     let rr_rhs_type = remove_reference(rhs_type);
     let generics = &implement.generics;
     let orig_where_clause = &implement.where_clause;
-    let where_clause = if let Some(x) = &implement.where_clause {
-        if x.predicates.trailing_punct() {
-            x.to_token_stream()
-        } else {
-            quote! {
-                #x,
-            }
-        }
-    } else {
-        quote! {where}
-    };
+    let where_clause = generate_where_clause(&implement.where_clause);
     let fn_name = op.to_func_ident();
     let op_assign = op.to_assign();
     let assign_fn_name = op_assign.to_func_ident();
