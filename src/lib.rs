@@ -863,4 +863,87 @@ mod tests {
             }.to_string()
         };
     }
+
+    #[test]
+    fn add_assign_no_commma() {
+        assert_eq! {
+            auto_ops_impl(
+                TokenStream::new(),
+                quote! {
+                    impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                    where
+                        M: Sized + Zero + for<'x> AddAssign<&'x M>
+                    {
+                        fn add_assign(&mut self, other: &Self) {
+                            self.0 += &other.0;
+                        }
+                    }
+                },
+            ).to_string(),
+            quote!{
+                impl<'a, M> AddAssign<&'a A<M> > for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+                #[allow(clippy::extra_unused_lifetimes)]
+                impl<'a, M> AddAssign<A<M> > for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>
+                {
+                    fn add_assign(&mut self, rhs: A<M>) {
+                        self.add_assign(&rhs);
+                    }
+                }
+                impl<'a, M> Add<&'a A<M> > for &'a A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                    A<M>: Clone,
+                {
+                    type Output = A<M>;
+                    fn add(self, rhs: &'a A<M>) -> Self::Output {
+                        let mut out = self.clone();
+                        out.add_assign(rhs);
+                        out
+                    }
+                }
+                impl<'a, M> Add<A<M> > for &'a A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                    A<M>: Clone,
+                {
+                    type Output = A<M>;
+                    fn add(self, rhs: A<M>) -> Self::Output {
+                        let mut out = self.clone();
+                        out.add_assign(&rhs);
+                        out
+                    }
+                }
+                impl<'a, M> Add<&'a A<M> > for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>
+                {
+                    type Output = Self;
+                    fn add(mut self, rhs: &'a A<M>) -> Self::Output {
+                        self.add_assign(rhs);
+                        self
+                    }
+                }
+                #[allow(clippy::extra_unused_lifetimes)]
+                impl<'a, M> Add<A<M> > for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>
+                {
+                    type Output = Self;
+                    fn add(mut self, rhs: A<M>) -> Self::Output {
+                        self.add_assign(&rhs);
+                        self
+                    }
+                }
+            }.to_string()
+        };
+    }
 }
