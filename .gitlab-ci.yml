@@ -24,7 +24,7 @@ test:
     -     time cargo +nightly update -Z minimal-versions
     - fi
     - cargo fetch # ソースコードのダウンロード
-    - cargo fmt --all --check --verbose # フォーマットチェック
+    - cargo fmt --all -- --check --verbose # フォーマットチェック
     - cargo clippy --workspace --all-targets $FEATURES -- -D warnings
     # テストを実行し結果をJUnit形式で出力
     - cargo test --lib --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
