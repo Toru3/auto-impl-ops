@@ -251,7 +251,7 @@ fn mul() {
 }
 
 #[test]
-#[cfg(not(feature="take_mut"))]
+#[cfg(not(feature = "take_mut"))]
 fn div() {
     assert_eq! {
         auto_ops_impl(
@@ -343,7 +343,7 @@ fn div() {
 }
 
 #[test]
-#[cfg(feature="take_mut")]
+#[cfg(feature = "take_mut")]
 fn div() {
     assert_eq! {
         auto_ops_impl(
