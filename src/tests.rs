@@ -251,6 +251,7 @@ fn mul() {
 }
 
 #[test]
+#[cfg(not(feature="take_mut"))]
 fn div() {
     assert_eq! {
         auto_ops_impl(
@@ -335,6 +336,90 @@ fn div() {
                     std::mem::swap(&mut t, self);
                     let mut u = t.div(&rhs);
                     std::mem::swap(&mut u, self);
+                }
+            }
+        }.to_string()
+    };
+}
+
+#[test]
+#[cfg(feature="take_mut")]
+fn div() {
+    assert_eq! {
+        auto_ops_impl(
+            TokenStream::new(),
+            quote! {
+                impl<'a, M> Div<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero,
+                    for<'x> &'x M: Div<Output = M>,
+                {
+                    type Output = Self;
+                    fn div(self, other: &Self) -> Self::Output {
+                        A(&self.0 / &other.0)
+                    }
+                }
+            },
+        ).to_string(),
+        quote!{
+            impl<'a, M> Div<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+            {
+                type Output = Self;
+                fn div(self, other: &Self) -> Self::Output {
+                    A(&self.0 / &other.0)
+                }
+            }
+            impl<'a, M> Div<A<M> > for &A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+                A<M>: Clone,
+            {
+                type Output = A<M>;
+                fn div(self, rhs: A<M>) -> Self::Output {
+                    self.clone().div(&rhs)
+                }
+            }
+            impl<'a, M> Div<A<M> > for A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+            {
+                type Output = Self;
+                fn div(self, rhs: A<M>) -> Self::Output {
+                    self.div(&rhs)
+                }
+            }
+            impl<'a, M> Div<&'a A<M> > for &A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+                A<M>: Clone,
+            {
+                type Output = A<M>;
+                fn div(self, rhs: &'a A<M>) -> Self::Output {
+                    self.clone().div(rhs)
+                }
+            }
+            impl<'a, M> DivAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+            {
+                fn div_assign(&mut self, rhs: &'a A<M>) {
+                    take_mut::take(self, |x| x.div(rhs));
+                }
+            }
+            impl<'a, M> DivAssign<A<M> > for A<M>
+            where
+                M: Sized + Zero,
+                for<'x> &'x M: Div<Output = M>,
+            {
+                fn div_assign(&mut self, rhs: A<M>) {
+                    take_mut::take(self, |x| x.div(&rhs));
                 }
             }
         }.to_string()
