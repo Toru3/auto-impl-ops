@@ -3,18 +3,19 @@ image: "rust:latest"
 test:
   stage: test
   script:
-    # ツールのインストール
-    - rustup toolchain install "$RUST_VERSION" --component rustfmt clippy
-    - rustup install nightly
-    - rustup default "$RUST_VERSION"
     # キャッシュの設定
     - if [ "${DISABLE_CACHE:-false}" = "false" ]; then
     -     export CARGO_HOME="$CI_PROJECT_DIR/cargo"
-    -     mkdir -p $CARGO_HOME target_cache
+    -     export RUSTUP_HOME="$CI_PROJECT_DIR/rustup"
+    -     mkdir -p "$CARGO_HOME" "$RUSTUP_HOME" target_cache
     -     ln -s /usr/local/cargo/bin $CARGO_HOME/bin
     -     ln -s /usr/local/cargo/env $CARGO_HOME/env
     -     ln -s target_cache target
     - fi
+    # ツールのインストール
+    - rustup toolchain install "$RUST_VERSION" --component rustfmt clippy
+    - rustup install nightly
+    - rustup default "$RUST_VERSION"
     # 現在のversionの表示
     - rustup --version && cargo --version
     # Cargo.lock の更新
@@ -29,6 +30,9 @@ test:
     # テストを実行し結果をJUnit形式で出力
     - cargo test --lib --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
   cache:
+    - key: "rustup-$RUST_VERSION"
+      paths:
+        - rustup/
     - key: "crates.io"
       paths:
         - cargo/bin/
@@ -47,7 +51,6 @@ test:
         - lib.xml
   variables:
     CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
-    CARGO_LOG: "cargo::sources::registry::http_remote=debug"
   parallel:
     matrix:
       - RUST_VERSION:
