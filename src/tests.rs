@@ -1,5 +1,12 @@
 use super::*;
-use pretty_assertions::assert_eq;
+fn to_pretty_string(tokens: proc_macro2::TokenStream) -> String {
+    prettyplease::unparse(&syn::parse2(tokens).unwrap())
+}
+macro_rules! assert_eq {
+    ($expected:expr, $result:expr) => {
+        pretty_assertions::assert_eq!(to_pretty_string($expected), to_pretty_string($result));
+    };
+}
 
 #[test]
 fn unsupported_trait() {
@@ -13,10 +20,10 @@ fn unsupported_trait() {
                     Self(self.0.clone())
                 }
             }
-        }).to_string(),
+        }),
         quote!{
             compile_error!{ "unexpacted Ident: Clone" }
-        }.to_string()
+        }
     };
 }
 
@@ -35,7 +42,7 @@ fn add_assign1() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> AddAssign<&'a A<M> > for A<M>
             where
@@ -99,7 +106,7 @@ fn add_assign1() {
                     self
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -115,7 +122,7 @@ fn add_assign2() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a> AddAssign<&'a B> for B {
                 fn add_assign(&mut self, other: &Self) {
@@ -165,7 +172,7 @@ fn add_assign2() {
                     self
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -186,7 +193,7 @@ fn mul() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> Mul for &'a A<M>
             where
@@ -246,7 +253,7 @@ fn mul() {
                     *self = (&*self).mul(&rhs);
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -268,7 +275,7 @@ fn div() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> Div<&'a A<M> > for A<M>
             where
@@ -338,7 +345,7 @@ fn div() {
                     std::mem::swap(&mut u, self);
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -360,7 +367,7 @@ fn div() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> Div<&'a A<M> > for A<M>
             where
@@ -422,7 +429,7 @@ fn div() {
                     take_mut::take(self, |x| x.div(&rhs));
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -441,7 +448,7 @@ fn add_assign_no_commma() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> AddAssign<&'a A<M> > for A<M>
             where
@@ -505,6 +512,6 @@ fn add_assign_no_commma() {
                     self
                 }
             }
-        }.to_string()
+        }
     };
 }
