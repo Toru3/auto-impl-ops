@@ -1,5 +1,12 @@
 use super::*;
-use pretty_assertions::assert_eq;
+fn to_pretty_string(tokens: proc_macro2::TokenStream) -> String {
+    prettyplease::unparse(&syn::parse2(tokens).unwrap())
+}
+macro_rules! assert_eq {
+    ($expected:expr, $result:expr) => {
+        pretty_assertions::assert_eq!(to_pretty_string($expected), to_pretty_string($result));
+    };
+}
 
 #[test]
 fn unsupported_trait() {
@@ -13,10 +20,10 @@ fn unsupported_trait() {
                     Self(self.0.clone())
                 }
             }
-        }).to_string(),
+        }),
         quote!{
             compile_error!{ "unexpacted Ident: Clone" }
-        }.to_string()
+        }
     };
 }
 
@@ -35,7 +42,7 @@ fn add_assign1() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> AddAssign<&'a A<M> > for A<M>
             where
@@ -104,7 +111,7 @@ fn add_assign1() {
                     lhs
                 }
             }
-        }.to_string()
+        }
     };
 }
 #[test]
@@ -119,7 +126,7 @@ fn add_assign2() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a> AddAssign<&'a B> for B {
                 fn add_assign(&mut self, other: &Self) {
@@ -174,7 +181,7 @@ fn add_assign2() {
                     lhs
                 }
             }
-        }.to_string()
+        }
     };
 }
 #[test]
@@ -194,7 +201,7 @@ fn mul() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> MulAssign<&'a A<M> > for A<M>
             where
@@ -262,7 +269,7 @@ fn mul() {
                     lhs.mul(rhs)
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -284,7 +291,7 @@ fn div() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> DivAssign<&'a A<M> > for A<M>
             where
@@ -362,7 +369,7 @@ fn div() {
                     lhs.div(rhs)
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -384,7 +391,7 @@ fn div() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> DivAssign<&'a A<M> > for A<M>
             where
@@ -454,7 +461,7 @@ fn div() {
                     lhs.div(rhs)
                 }
             }
-        }.to_string()
+        }
     };
 }
 
@@ -473,7 +480,7 @@ fn add_assign_no_commma() {
                     }
                 }
             },
-        ).to_string(),
+        ),
         quote!{
             impl<'a, M> AddAssign<&'a A<M> > for A<M>
             where
@@ -740,6 +747,6 @@ fn add_assign_select() {
                     self.0 += &other.0;
                 }
             }
-        }.to_string()
+        }
     };
 }
