@@ -3,312 +3,289 @@
 mod tests;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use strum::{Display, EnumString};
-use syn::{
-    parse::{Parse, ParseStream, Parser},
-    punctuated::Punctuated,
-    spanned::Spanned,
-    *,
-};
+use syn::{parse::Parser, punctuated::Punctuated, spanned::Spanned, *};
 
-fn remove_reference(ref_: &TypeReference) -> &Type {
-    &ref_.elem
+fn is_ref(type_: &Type) -> bool {
+    matches!(type_, Type::Reference(_))
 }
 
-fn add_reference(target: Type, ref_: TypeReference) -> TypeReference {
-    let mut out = ref_;
-    out.elem = Box::new(target);
-    out
+fn remove_reference(type_: &Type) -> &Type {
+    match type_ {
+        Type::Reference(ref_) => &ref_.elem,
+        _ => type_,
+    }
 }
 
-fn generate_where_clause(where_clause: &Option<WhereClause>) -> TokenStream {
-    if let Some(x) = where_clause {
-        if x.predicates.trailing_punct() {
-            x.to_token_stream()
+fn copy_reference(target: &Type, source: &Type) -> Type {
+    match source {
+        Type::Reference(inner) => {
+            let mut out = inner.clone();
+            out.elem = Box::new(target.clone());
+            Type::Reference(out)
+        }
+        _ => target.clone(),
+    }
+}
+
+fn get_last_segment(implement: &ItemImpl) -> Result<&PathSegment> {
+    let Some(trait_) = implement.trait_.as_ref() else {
+        return Err(Error::new(implement.span(), "Is not Trait impl"));
+    };
+    if let Some(bang) = trait_.0 {
+        return Err(Error::new(bang.span(), "Unexpected negative impl"));
+    }
+    let segments = &trait_.1.segments;
+    if segments.is_empty() {
+        return Err(Error::new(segments.span(), "Unexpected empty trait path"));
+    }
+    Ok(segments.last().unwrap())
+}
+
+fn get_rhs_type<'a>(args: &'a PathArguments, self_type: &'a Type) -> Result<&'a Type> {
+    match args {
+        PathArguments::None => Ok(self_type),
+        PathArguments::AngleBracketed(args) => {
+            let args = &args.args;
+            if args.len() != 1 {
+                return Err(Error::new(
+                    args.span(),
+                    "Number of trait arguments is not 1",
+                ));
+            }
+            if let GenericArgument::Type(rhs_type) = args.first().unwrap() {
+                Ok(rhs_type)
+            } else {
+                Err(Error::new(args.span(), "Is not type"))
+            }
+        }
+        _ => Err(Error::new(args.span(), "Unexpected trait arguments")),
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct Operate(OpTrait, bool, bool);
+impl Operate {
+    fn lhs_move(&self) -> bool {
+        !self.0.is_assign() && !self.1
+    }
+    fn rhs_move(&self) -> bool {
+        !self.2
+    }
+    fn require_lhs_clone(&self, op: Self) -> bool {
+        (self.lhs_move() || self.0.is_assign()) && op.1
+    }
+    fn require_rhs_clone(&self, op: Self) -> bool {
+        self.rhs_move() && op.2
+    }
+    fn require_clone(&self, op: Self) -> bool {
+        self.require_lhs_clone(op) || self.require_rhs_clone(op)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Generator<'a> {
+    implement: &'a ItemImpl,
+    source_op: Operate,
+    self_type: &'a Type,
+    rhs_type: &'a Type,
+}
+impl<'a> Generator<'a> {
+    fn get_arg_type(is_ref_: bool, target: &Type, source: &Type) -> Type {
+        if !is_ref_ {
+            remove_reference(target).clone()
+        } else if is_ref(target) {
+            target.clone()
+        } else if is_ref(source) {
+            copy_reference(target, source)
+        } else {
+            parse_quote! {
+                &#target
+            }
+        }
+    }
+    fn update_where_clause(&self, generics: &mut Generics, op: Operate) {
+        let self_type = self.self_type;
+        if self.source_op.require_clone(op) {
+            let wc = generics.make_where_clause();
+            wc.predicates.push(parse_quote! {
+                #self_type: Clone
+            });
+        }
+        if self.source_op.lhs_move() && op.0.is_assign() && cfg!(not(feature = "take_mut")) {
+            let wc = generics.make_where_clause();
+            wc.predicates.push(parse_quote! {
+                #self_type: Default
+            });
+        }
+    }
+    fn assgin_body(source_op: Operate) -> TokenStream {
+        let source_fn_name = source_op.0.to_func_ident();
+        if source_op.0.is_assign() {
+            quote! {
+                self.#source_fn_name(rhs);
+            }
+        } else if source_op.1 {
+            quote! {
+                *self = (&*self).#source_fn_name(rhs);
+            }
+        } else if cfg!(feature = "take_mut") {
+            quote! {
+                take_mut::take(self, |x| x.#source_fn_name(rhs));
+            }
         } else {
             quote! {
-                #x,
+                let mut t = Self::default();
+                std::mem::swap(&mut t, self);
+                let mut u = t.#source_fn_name(rhs);
+                std::mem::swap(&mut u, self);
             }
         }
-    } else {
-        quote! {where}
     }
-}
-
-fn ref_assign(implement: &OpImpl, op: OpTrait, rhs_type: &TypeReference) -> Result<TokenStream> {
-    let mut no_ref_impl = implement.clone();
-    *no_ref_impl.op_trait.arg.as_mut().unwrap() = remove_reference(rhs_type).clone();
-    let last_arg = no_ref_impl.group.inputs.last_mut().unwrap();
-    if let FnArg::Typed(rhs) = last_arg {
-        *rhs.pat = Pat::Ident(PatIdent {
-            attrs: Vec::new(),
-            by_ref: None,
-            mutability: None,
-            ident: format_ident!("rhs"),
-            subpat: None,
-        });
-        *rhs.ty = remove_reference(rhs_type).clone();
-    } else {
-        return Err(Error::new(
-            last_arg.span(),
-            format!("unexpacted arg: {}", last_arg.to_token_stream()),
-        ));
-    }
-    let fn_name = op.to_func_ident();
-    no_ref_impl.group.block.stmts = vec![parse2::<Stmt>(quote! {
-        self.#fn_name(&rhs);
-    })
-    .unwrap()];
-    let generics = &implement.generics;
-    let op_non_assign = op.to_non_assign();
-    let self_type = &implement.self_type;
-    let ref_self_type = add_reference(implement.self_type.clone(), rhs_type.clone());
-    let orig_where_clause = &implement.where_clause;
-    let where_clause = generate_where_clause(&implement.where_clause);
-    let fn_name_non_assign = op_non_assign.to_func_ident();
-    let rr_rhs_type = remove_reference(rhs_type);
-    let t = quote! {
-        #implement
-        #[allow(clippy::extra_unused_lifetimes)]
-        #no_ref_impl
-        impl #generics #op_non_assign<#rhs_type> for #ref_self_type
-        #where_clause
-            #self_type: Clone,
-        {
-            type Output = #self_type;
-            fn #fn_name_non_assign(self, rhs: #rhs_type) -> Self::Output {
-                let mut out = self.clone();
-                out.#fn_name(rhs);
-                out
-            }
-        }
-        impl #generics #op_non_assign<#rr_rhs_type> for #ref_self_type
-        #where_clause
-            #self_type: Clone,
-        {
-            type Output = #self_type;
-            fn #fn_name_non_assign(self, rhs: #rr_rhs_type) -> Self::Output {
-                let mut out = self.clone();
-                out.#fn_name(&rhs);
-                out
-            }
-        }
-        impl #generics #op_non_assign<#rhs_type> for #self_type
-        #orig_where_clause
-        {
-            type Output = Self;
-            fn #fn_name_non_assign(mut self, rhs: #rhs_type) -> Self::Output {
-                self.#fn_name(rhs);
-                self
-            }
-        }
-        #[allow(clippy::extra_unused_lifetimes)]
-        impl #generics #op_non_assign<#rr_rhs_type> for #self_type
-        #orig_where_clause
-        {
-            type Output = Self;
-            fn #fn_name_non_assign(mut self, rhs: #rr_rhs_type) -> Self::Output {
-                self.#fn_name(&rhs);
-                self
-            }
-        }
-    };
-    Ok(t)
-}
-
-fn ref_ref(
-    implement: &OpImpl,
-    op: OpTrait,
-    self_type: &TypeReference,
-    rhs_type: &TypeReference,
-) -> Result<TokenStream> {
-    let rr_self_type = remove_reference(self_type);
-    let rr_rhs_type = remove_reference(rhs_type);
-    let generics = &implement.generics;
-    let where_clause = &implement.where_clause;
-    let fn_name = op.to_func_ident();
-    let op_assign = op.to_assign();
-    let assign_fn_name = op_assign.to_func_ident();
-    let t = quote! {
-        #implement
-        impl #generics #op<#rr_rhs_type> for #self_type
-        #where_clause
-        {
-            type Output = #rr_self_type;
-            fn #fn_name(self, rhs: #rr_rhs_type) -> Self::Output {
-                self.#fn_name(&rhs)
-            }
-        }
-        impl #generics #op<#rhs_type> for #rr_self_type
-        #where_clause
-        {
-            type Output = Self;
-            fn #fn_name(self, rhs: #rhs_type) -> Self::Output {
-                (&self).#fn_name(rhs)
-            }
-        }
-        impl #generics #op<#rr_rhs_type> for #rr_self_type
-        #where_clause
-        {
-            type Output = Self;
-            fn #fn_name(self, rhs: #rr_rhs_type) -> Self::Output {
-                (&self).#fn_name(&rhs)
-            }
-        }
-        impl #generics #op_assign<#rhs_type> for #rr_self_type
-        #where_clause
-        {
-            fn #assign_fn_name(&mut self, rhs: #rhs_type) {
-                *self = (&*self).#fn_name(rhs);
-            }
-        }
-        impl #generics #op_assign<#rr_rhs_type> for #rr_self_type
-        #where_clause
-        {
-            fn #assign_fn_name(&mut self, rhs: #rr_rhs_type) {
-                *self = (&*self).#fn_name(&rhs);
-            }
-        }
-    };
-    Ok(t)
-}
-
-fn non_ref_ref(
-    implement: &OpImpl,
-    op: OpTrait,
-    self_type: &Type,
-    rhs_type: &TypeReference,
-) -> Result<TokenStream> {
-    let rr_rhs_type = remove_reference(rhs_type);
-    let generics = &implement.generics;
-    let orig_where_clause = &implement.where_clause;
-    let where_clause = generate_where_clause(&implement.where_clause);
-    let fn_name = op.to_func_ident();
-    let op_assign = op.to_assign();
-    let assign_fn_name = op_assign.to_func_ident();
-    let take_mut = cfg!(feature = "take_mut");
-    let b1 = if take_mut {
-        quote! {
-            take_mut::take(self, |x| x.#fn_name(rhs));
-        }
-    } else {
-        quote! {
-            let mut t = Self::default();
-            std::mem::swap(&mut t, self);
-            let mut u = t.#fn_name(rhs);
-            std::mem::swap(&mut u, self);
-        }
-    };
-    let b2 = if take_mut {
-        quote! {
-            take_mut::take(self, |x| x.#fn_name(&rhs));
-        }
-    } else {
-        quote! {
-            let mut t = Self::default();
-            std::mem::swap(&mut t, self);
-            let mut u = t.#fn_name(&rhs);
-            std::mem::swap(&mut u, self);
-        }
-    };
-    let default = if take_mut {
-        quote! {
-            #orig_where_clause
-        }
-    } else {
-        quote! {
-            #where_clause
-                #self_type: Default,
-        }
-    };
-    let t = quote! {
-        #implement
-        impl #generics #op<#rr_rhs_type> for &#self_type
-        #where_clause
-            #self_type: Clone,
-        {
-            type Output = #self_type;
-            fn #fn_name(self, rhs: #rr_rhs_type) -> Self::Output {
-                self.clone().#fn_name(&rhs)
-            }
-        }
-        impl #generics #op<#rr_rhs_type> for #self_type
-        #orig_where_clause
-        {
-            type Output = Self;
-            fn #fn_name(self, rhs: #rr_rhs_type) -> Self::Output {
-                self.#fn_name(&rhs)
-            }
-        }
-        impl #generics #op<#rhs_type> for &#self_type
-        #where_clause
-            #self_type: Clone,
-        {
-            type Output = #self_type;
-            fn #fn_name(self, rhs: #rhs_type) -> Self::Output {
-                self.clone().#fn_name(rhs)
-            }
-        }
-        impl #generics #op_assign<#rhs_type> for #self_type
-        #default
-        {
-            fn #assign_fn_name(&mut self, rhs: #rhs_type) {
-                #b1
-            }
-        }
-        impl #generics #op_assign<#rr_rhs_type> for #self_type
-        #default
-        {
-            fn #assign_fn_name(&mut self, rhs: #rr_rhs_type) {
-                #b2
-            }
-        }
-    };
-    Ok(t)
-}
-
-fn auto_ops_generate(implement: OpImpl) -> Result<TokenStream> {
-    let op = implement.op_trait.ident;
-    let type_ = &implement.op_trait.arg;
-    if op.is_assign() {
-        if let Some(Type::Reference(rhs_type)) = type_ {
-            ref_assign(&implement, op, rhs_type)
-        } else {
-            Err(Error::new(
-                Span::call_site(),
-                "not implemented: type of RHS is not reference",
-            ))
-        }
-    } else {
-        let self_type = &implement.self_type;
-        let is_self_ref = matches!(self_type, Type::Reference(_));
-        let (is_rhs_ref, rhs_type) = match type_ {
-            None => (is_self_ref, self_type),
-            Some(Type::Reference(_)) => (true, type_.as_ref().unwrap()),
-            Some(x) => (false, x),
-        };
-        if is_rhs_ref {
-            let rhs_type = if let Type::Reference(rhs_type) = rhs_type {
-                rhs_type
+    fn gen_rhs(source_op: Operate, op: Operate) -> TokenStream {
+        #[allow(clippy::collapsible_else_if)]
+        if source_op.2 {
+            if op.2 {
+                TokenStream::new()
             } else {
-                unreachable!()
+                quote!(let rhs = &rhs;)
+            }
+        } else {
+            if op.2 {
+                quote!(let rhs = rhs.clone();)
+            } else {
+                TokenStream::new()
+            }
+        }
+    }
+    fn gen_lhs(source_op: Operate, op: Operate) -> TokenStream {
+        #[allow(clippy::collapsible_else_if)]
+        if source_op.0.is_assign() {
+            if op.1 {
+                quote!(let mut lhs = self.clone();)
+            } else {
+                quote!(let mut lhs = self;)
+            }
+        } else if source_op.1 {
+            if op.1 {
+                quote!(let lhs = self;)
+            } else {
+                quote!(let lhs = &self;)
+            }
+        } else {
+            if op.1 {
+                quote!(let lhs = self.clone();)
+            } else {
+                quote!(let lhs = self;)
+            }
+        }
+    }
+    fn generate(&self, op: Operate) -> Result<TokenStream> {
+        if op.0.is_assign() && op.1 {
+            return Err(Error::new(
+                Span::call_site(),
+                "Type of LHS of assign operations must not reference",
+            ));
+        }
+        if op == self.source_op {
+            return Ok(self.implement.to_token_stream());
+        }
+        let mut work = self.implement.clone();
+        if let Operate(_, false, false) = op {
+            work.attrs.push(parse_quote! {
+                #[allow(clippy::extra_unused_lifetimes)]
+            });
+        }
+        let rhs_type = Self::get_arg_type(op.2, self.rhs_type, self.self_type);
+        let trait_ = op.0;
+        *work.trait_.as_mut().unwrap().1.segments.last_mut().unwrap() =
+            parse_quote! { #trait_<#rhs_type> };
+        *work.self_ty.as_mut() = Self::get_arg_type(op.1, self.self_type, self.rhs_type);
+        self.update_where_clause(&mut work.generics, op);
+        work.items.clear();
+        let fn_name = op.0.to_func_ident();
+        let preamble_rhs = Self::gen_rhs(self.source_op, op);
+        if op.0.is_assign() {
+            let body = Self::assgin_body(self.source_op);
+            work.items.push(parse_quote! {
+                fn #fn_name(&mut self, rhs: #rhs_type) {
+                    #preamble_rhs
+                    #body
+                }
+            });
+        } else {
+            let rr_self_type = remove_reference(self.self_type);
+            work.items.push(parse_quote! {
+                type Output = #rr_self_type;
+            });
+            let preamble_lhs = Self::gen_lhs(self.source_op, op);
+            let source_fn_name = self.source_op.0.to_func_ident();
+            let body = if self.source_op.0.is_assign() {
+                quote! {
+                    lhs.#source_fn_name(rhs);
+                    lhs
+                }
+            } else {
+                quote! {
+                    lhs.#source_fn_name(rhs)
+                }
             };
-            if let Type::Reference(self_type) = self_type {
-                ref_ref(&implement, op, self_type, rhs_type)
-            } else {
-                non_ref_ref(&implement, op, self_type, rhs_type)
-            }
-        } else {
-            Err(Error::new(
-                Span::call_site(),
-                "not implemented: type of RHS is not reference",
-            ))
+            work.items.push(parse_quote! {
+                fn #fn_name(self, rhs: #rhs_type) -> Self::Output {
+                    #preamble_lhs
+                    #preamble_rhs
+                    #body
+                }
+            });
         }
+        Ok(quote!(#work))
     }
 }
 
-#[derive(Clone, Copy, Debug, Display, EnumString, PartialEq, Eq)]
+type Attributes = Punctuated<Ident, token::Comma>;
+fn auto_ops_generate(mut attrs: Attributes, implement: ItemImpl) -> Result<TokenStream> {
+    let last_segment = get_last_segment(&implement)?;
+    let op: OpTrait = last_segment.ident.clone().try_into()?;
+    let self_type = &implement.self_ty;
+    let rhs_type = get_rhs_type(&last_segment.arguments, self_type)?;
+    let generator = Generator {
+        implement: &implement,
+        source_op: Operate(op, is_ref(self_type), is_ref(rhs_type)),
+        self_type,
+        rhs_type,
+    };
+    let list = [
+        ("assign_ref", Operate(op.to_assign(), false, true)),
+        ("assign_val", Operate(op.to_assign(), false, false)),
+        ("ref_ref", Operate(op.to_non_assign(), true, true)),
+        ("ref_val", Operate(op.to_non_assign(), true, false)),
+        ("val_ref", Operate(op.to_non_assign(), false, true)),
+        ("val_val", Operate(op.to_non_assign(), false, false)),
+    ];
+    let map = HashMap::from(list);
+    let rev_map = list.iter().map(|&(v, k)| (k, v)).collect::<HashMap<_, _>>();
+    if attrs.is_empty() {
+        attrs = list.iter().map(|(x, _)| format_ident!("{x}")).collect();
+    }
+    let source = rev_map[&generator.source_op];
+    if !attrs.iter().any(|x| x == source) {
+        attrs.push(format_ident!("{source}"));
+    }
+    let mut result = TokenStream::new();
+    for i in attrs.iter() {
+        let s = i.to_string();
+        if let Some(op) = map.get(s.as_str()) {
+            let code = generator.generate(*op)?;
+            result.extend(code);
+        }
+    }
+    Ok(result)
+}
+
+#[derive(Clone, Copy, Debug, Display, EnumString, PartialEq, Eq, Hash)]
 enum OpTrait {
     Add,
     AddAssign,
@@ -320,10 +297,20 @@ enum OpTrait {
     DivAssign,
     Rem,
     RemAssign,
+    BitAnd,
+    BitAndAssign,
+    BitOr,
+    BitOrAssign,
+    BitXor,
+    BitXorAssign,
+    Shl,
+    ShlAssign,
+    Shr,
+    ShrAssign,
 }
-impl Parse for OpTrait {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let ident = input.parse::<Ident>()?;
+impl TryFrom<Ident> for OpTrait {
+    type Error = Error;
+    fn try_from(ident: Ident) -> Result<Self> {
         if let Ok(x) = Self::from_str(&ident.to_string()) {
             Ok(x)
         } else {
@@ -349,6 +336,11 @@ impl OpTrait {
             Mul | MulAssign => MulAssign,
             Div | DivAssign => DivAssign,
             Rem | RemAssign => RemAssign,
+            BitAnd | BitAndAssign => BitAndAssign,
+            BitOr | BitOrAssign => BitOrAssign,
+            BitXor | BitXorAssign => BitXorAssign,
+            Shl | ShlAssign => ShlAssign,
+            Shr | ShrAssign => ShrAssign,
         }
     }
     fn to_non_assign(self) -> Self {
@@ -359,6 +351,11 @@ impl OpTrait {
             Mul | MulAssign => Mul,
             Div | DivAssign => Div,
             Rem | RemAssign => Rem,
+            BitAnd | BitAndAssign => BitAnd,
+            BitOr | BitOrAssign => BitOr,
+            BitXor | BitXorAssign => BitXor,
+            Shl | ShlAssign => Shl,
+            Shr | ShrAssign => Shr,
         }
     }
     fn is_assign(self) -> bool {
@@ -377,140 +374,28 @@ impl OpTrait {
             DivAssign => format_ident!("div_assign"),
             Rem => format_ident!("rem"),
             RemAssign => format_ident!("rem_assign"),
+            BitAnd => format_ident!("bitand"),
+            BitAndAssign => format_ident!("bitand_assign"),
+            BitOr => format_ident!("bitor"),
+            BitOrAssign => format_ident!("bitor_assign"),
+            BitXor => format_ident!("bitxor"),
+            BitXorAssign => format_ident!("bitxor_assign"),
+            Shl => format_ident!("shl"),
+            ShlAssign => format_ident!("shl_assign"),
+            Shr => format_ident!("shr"),
+            ShrAssign => format_ident!("shr_assign"),
         }
     }
 }
 
-#[derive(Clone, Debug)]
-struct BracedImplItemMethod {
-    item_type: Option<ItemType>,
-    fn_token: Token![fn],
-    ident: Ident,
-    inputs: Punctuated<FnArg, token::Comma>,
-    output: ReturnType,
-    block: Block,
-}
-impl Parse for BracedImplItemMethod {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let content;
-        let content2;
-        let _brace_token = braced!(content in input);
-        let item_type = if content.peek(Token![type]) {
-            Some(content.parse()?)
-        } else {
-            None
-        };
-        let fn_token = content.parse()?;
-        let ident = content.parse()?;
-        let _paren_token = parenthesized!(content2 in content);
-        let inputs = content2.parse_terminated(FnArg::parse)?;
-        let output = content.parse()?;
-        let block = content.parse()?;
-        Ok(BracedImplItemMethod {
-            item_type,
-            fn_token,
-            ident,
-            inputs,
-            output,
-            block,
-        })
-    }
-}
-impl ToTokens for BracedImplItemMethod {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        use proc_macro2::{Delimiter, Group};
-        let inner = {
-            let mut t = TokenStream::new();
-            let tokens = &mut t;
-            self.item_type.to_tokens(tokens);
-            self.fn_token.to_tokens(tokens);
-            self.ident.to_tokens(tokens);
-            let inner = {
-                let mut t = TokenStream::new();
-                let tokens = &mut t;
-                self.inputs.to_tokens(tokens);
-                t
-            };
-            tokens.append(Group::new(Delimiter::Parenthesis, inner));
-            self.output.to_tokens(tokens);
-            self.block.to_tokens(tokens);
-            t
-        };
-        tokens.append(Group::new(Delimiter::Brace, inner));
-    }
-}
-
-#[derive(Clone, Debug, derive_syn_parse::Parse)]
-struct RestrictPath {
-    ident: OpTrait,
-    _colon2_token: Option<token::Colon2>,
-    #[prefix(Option<Token![<]> as lt_token)]
-    #[parse_if(lt_token.is_some())]
-    arg: Option<Type>,
-    #[parse_if(lt_token.is_some())]
-    _gt_token: Option<token::Gt>,
-}
-impl ToTokens for RestrictPath {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        use proc_macro2::{Punct, Spacing};
-        self.ident.to_tokens(tokens);
-        if self.arg.is_some() {
-            tokens.append(Punct::new('<', Spacing::Alone));
-            self.arg.to_tokens(tokens);
-            tokens.append(Punct::new('>', Spacing::Alone));
-        }
-    }
-}
-
-#[derive(Clone, Debug, derive_syn_parse::Parse)]
-struct OpImpl {
-    impl_token: Token![impl],
-    generics: Generics,
-    op_trait: RestrictPath,
-    for_token: Token![for],
-    self_type: Type,
-    #[peek(Token![where])]
-    where_clause: Option<WhereClause>,
-    group: BracedImplItemMethod,
-}
-impl ToTokens for OpImpl {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.impl_token.to_tokens(tokens);
-        self.generics.to_tokens(tokens);
-        self.op_trait.to_tokens(tokens);
-        self.for_token.to_tokens(tokens);
-        self.self_type.to_tokens(tokens);
-        self.where_clause.to_tokens(tokens);
-        self.group.to_tokens(tokens);
-    }
-}
-
-fn auto_ops_attr_parse(attrs: ParseStream) -> Result<TokenStream> {
-    if attrs.is_empty() {
-        Ok(TokenStream::new())
-    } else {
-        dbg!(&attrs);
-        Err(Error::new(
-            Span::call_site(),
-            format!("unexpacted arg: {}", attrs),
-        ))
-    }
-}
-
-fn auto_ops_parse(input: ParseStream) -> Result<TokenStream> {
-    let implement = input.parse::<OpImpl>()?;
-    auto_ops_generate(implement)
+fn auto_ops_impl_inner(attrs: TokenStream, tokens: TokenStream) -> Result<TokenStream> {
+    let a = Punctuated::parse_terminated.parse2(attrs)?;
+    let i = parse2(tokens)?;
+    auto_ops_generate(a, i)
 }
 
 fn auto_ops_impl(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    let mut a = auto_ops_attr_parse
-        .parse2(attrs)
-        .unwrap_or_else(Error::into_compile_error);
-    let i = auto_ops_parse
-        .parse2(tokens)
-        .unwrap_or_else(Error::into_compile_error);
-    a.extend(i);
-    a
+    auto_ops_impl_inner(attrs, tokens).unwrap_or_else(Error::into_compile_error)
 }
 
 #[proc_macro_attribute]

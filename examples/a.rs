@@ -6,6 +6,8 @@ use std::ops::*;
 struct A<T>(T);
 #[derive(Clone, Default)]
 struct B(i32);
+#[derive(Clone, Default)]
+struct C<T>(T);
 
 #[auto_ops]
 impl<'a, M> AddAssign<&'a A<M>> for A<M>
@@ -91,6 +93,92 @@ where
     type Output = Self;
     fn div(self, other: &Self) -> Self::Output {
         A(&self.0 / &other.0)
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitAndAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitAndAssign<&'x M>,
+{
+    fn bitand_assign(&mut self, other: &Self) {
+        self.0 &= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitOrAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitOrAssign<&'x M>,
+{
+    fn bitor_assign(&mut self, other: &Self) {
+        self.0 |= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitXorAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitXorAssign<&'x M>,
+{
+    fn bitxor_assign(&mut self, other: &Self) {
+        self.0 ^= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> ShlAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> ShlAssign<&'x M>,
+{
+    fn shl_assign(&mut self, other: &Self) {
+        self.0 <<= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> ShrAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> ShrAssign<&'x M>,
+{
+    fn shr_assign(&mut self, other: &Self) {
+        self.0 >>= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<M> ShlAssign<u8> for A<M>
+where
+    M: Sized + ShlAssign<u8>,
+{
+    fn shl_assign(&mut self, other: u8) {
+        self.0 <<= other;
+    }
+}
+
+#[auto_ops]
+impl<M> ShrAssign<u8> for A<M>
+where
+    M: Sized + ShrAssign<u8>,
+{
+    fn shr_assign(&mut self, other: u8) {
+        self.0 >>= other;
+    }
+}
+
+#[auto_ops(val_val, ref_val)]
+impl<T: AddAssign> AddAssign for C<T> {
+    fn add_assign(&mut self, other: Self) {
+        self.0 += other.0;
+    }
+}
+#[auto_ops(val_ref, ref_ref)]
+impl<T> AddAssign<&C<T>> for C<T>
+where
+    T: for<'x> AddAssign<&'x T>,
+{
+    fn add_assign(&mut self, other: &Self) {
+        self.0 += &other.0;
     }
 }
 
