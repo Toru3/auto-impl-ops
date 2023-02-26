@@ -5,12 +5,8 @@ test:
   script:
     # キャッシュの設定
     - if [ "${DISABLE_CACHE:-false}" = "false" ]; then
-    -     export CARGO_HOME="$CI_PROJECT_DIR/cargo"
     -     export RUSTUP_HOME="$CI_PROJECT_DIR/rustup"
-    -     mkdir -p "$CARGO_HOME" "$RUSTUP_HOME" target_cache
-    -     ln -s /usr/local/cargo/bin $CARGO_HOME/bin
-    -     ln -s /usr/local/cargo/env $CARGO_HOME/env
-    -     ln -s target_cache target
+    -     mkdir -p "$RUSTUP_HOME"
     - fi
     # ツールのインストール
     - rustup toolchain install "$RUST_VERSION" --component rustfmt clippy
@@ -35,15 +31,6 @@ test:
     - key: "rustup-$RUST_VERSION"
       paths:
         - rustup/
-    - key: "crates.io"
-      paths:
-        - cargo/bin/
-        - cargo/registry/index/
-        - cargo/registry/cache/
-        - cargo/git/db/
-    - key: "target"
-      paths:
-        - target_cache/
   artifacts:
     when: always
     paths:
