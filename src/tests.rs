@@ -552,3 +552,201 @@ fn add_assign_no_commma() {
         }
     };
 }
+
+#[test]
+fn add_assign_select() {
+    assert_eq! {
+        auto_ops_impl(
+            quote! {
+                assign_val,
+            },
+            quote! {
+                impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+            },
+        ),
+        quote!{
+            #[allow(clippy::extra_unused_lifetimes)]
+            impl<'a, M> AddAssign<A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, rhs: A<M>) {
+                    let rhs = &rhs;
+                    self.add_assign(rhs);
+                }
+            }
+            impl<'a, M> AddAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, other: &Self) {
+                    self.0 += &other.0;
+                }
+            }
+        }
+    };
+    assert_eq! {
+        auto_ops_impl(
+            quote! {
+                ref_ref,
+            },
+            quote! {
+                impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+            },
+        ),
+        quote!{
+            impl<'a, M> Add<&'a A<M> > for &'a A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                A<M>: Clone,
+            {
+                type Output = A<M>;
+                fn add(self, rhs: &'a A<M>) -> Self::Output {
+                    let mut lhs = self.clone();
+                    lhs.add_assign(rhs);
+                    lhs
+                }
+            }
+            impl<'a, M> AddAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, other: &Self) {
+                    self.0 += &other.0;
+                }
+            }
+        }
+    };
+    assert_eq! {
+        auto_ops_impl(
+            quote! {
+                ref_val,
+            },
+            quote! {
+                impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+            },
+        ),
+        quote!{
+            impl<'a, M> Add<A<M> > for &'a A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                A<M>: Clone,
+            {
+                type Output = A<M>;
+                fn add(self, rhs: A<M>) -> Self::Output {
+                    let mut lhs = self.clone();
+                    let rhs = &rhs;
+                    lhs.add_assign(rhs);
+                    lhs
+                }
+            }
+            impl<'a, M> AddAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, other: &Self) {
+                    self.0 += &other.0;
+                }
+            }
+        }
+    };
+    assert_eq! {
+        auto_ops_impl(
+            quote! {
+                val_ref,
+            },
+            quote! {
+                impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+            },
+        ),
+        quote!{
+            impl<'a, M> Add<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                type Output = A<M>;
+                fn add(self, rhs: &'a A<M>) -> Self::Output {
+                    let mut lhs = self;
+                    lhs.add_assign(rhs);
+                    lhs
+                }
+            }
+            impl<'a, M> AddAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, other: &Self) {
+                    self.0 += &other.0;
+                }
+            }
+        }
+    };
+    assert_eq! {
+        auto_ops_impl(
+            quote! {
+                val_val,
+            },
+            quote! {
+                impl<'a, M> AddAssign<&'a A<M>> for A<M>
+                where
+                    M: Sized + Zero + for<'x> AddAssign<&'x M>,
+                {
+                    fn add_assign(&mut self, other: &Self) {
+                        self.0 += &other.0;
+                    }
+                }
+            },
+        ),
+        quote!{
+            #[allow(clippy::extra_unused_lifetimes)]
+            impl<'a, M> Add<A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                type Output = A<M>;
+                fn add(self, rhs: A<M>) -> Self::Output {
+                    let mut lhs = self;
+                    let rhs = &rhs;
+                    lhs.add_assign(rhs);
+                    lhs
+                }
+            }
+            impl<'a, M> AddAssign<&'a A<M> > for A<M>
+            where
+                M: Sized + Zero + for<'x> AddAssign<&'x M>,
+            {
+                fn add_assign(&mut self, other: &Self) {
+                    self.0 += &other.0;
+                }
+            }
+        }
+    };
+}
