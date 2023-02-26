@@ -109,17 +109,17 @@ impl<'a> Generator<'a> {
         }
     }
     fn update_where_clause(&self, generics: &mut Generics, op: Operate) {
-        let self_type = self.self_type;
+        let rr_self_type = remove_reference(self.self_type);
         if self.source_op.require_clone(op) {
             let wc = generics.make_where_clause();
             wc.predicates.push(parse_quote! {
-                #self_type: Clone
+                #rr_self_type: Clone
             });
         }
         if self.source_op.lhs_move() && op.0.is_assign() && cfg!(not(feature = "take_mut")) {
             let wc = generics.make_where_clause();
             wc.predicates.push(parse_quote! {
-                #self_type: Default
+                #rr_self_type: Default
             });
         }
     }
