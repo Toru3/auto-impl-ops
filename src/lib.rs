@@ -32,9 +32,10 @@ fn copy_reference(target: &Type, source: &Type) -> Type {
 }
 
 fn get_last_segment(implement: &ItemImpl) -> Result<&PathSegment> {
-    let Some(trait_) = implement.trait_.as_ref() else {
+    if implement.trait_.is_none() {
         return Err(Error::new(implement.span(), "Is not Trait impl"));
     };
+    let trait_ = implement.trait_.as_ref().unwrap();
     if let Some(bang) = trait_.0 {
         return Err(Error::new(bang.span(), "Unexpected negative impl"));
     }
@@ -268,11 +269,11 @@ fn auto_ops_generate(mut attrs: Attributes, implement: ItemImpl) -> Result<Token
     let map = HashMap::from(list);
     let rev_map = list.iter().map(|&(v, k)| (k, v)).collect::<HashMap<_, _>>();
     if attrs.is_empty() {
-        attrs = list.iter().map(|(x, _)| format_ident!("{x}")).collect();
+        attrs = list.iter().map(|(x, _)| format_ident!("{}", x)).collect();
     }
     let source = rev_map[&generator.source_op];
     if !attrs.iter().any(|x| x == source) {
-        attrs.push(format_ident!("{source}"));
+        attrs.push(format_ident!("{}", source));
     }
     let mut result = TokenStream::new();
     for i in attrs.iter() {
