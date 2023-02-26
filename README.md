@@ -2,10 +2,13 @@ semi-automatic implementation proc-macro for binary operations
 
 `#[auto_ops]` make implementation for `T += U`, `T + U`, `T + &U`, `&T + U`, `&T + &U` from implementation for `T += &U`.
 
-supported list (`@` is `+`, `-`, `*`, `/`, or `%`.)
-* `T @= &U` => `T @= U`, `T @ U`, `T @ &U`, `&T @ U`, `&T @ &U`
-* `&T @ &U` => `T @ U`, `&T @ U`, `T @ &U`, `T @= &U`, `T @= U`
-* `T @ &U` => `T @ U`, `&T @ U`, `&T @ &U`, `T @= &U`, `T @= U`
+supported list (`@` is `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `<<` or `>>`.)
+* `T @= &U` => `T @= U`, `&T @ &U`, `&T @ U`, `T @ &U`, `T @ U`
+* `T @= U` =>  `T @= &U`, `&T @ &U`, `&T @ U`, `T @ &U`, `T @ U`
+* `&T @ &U` => `T @= &U`, `T @= U`, `&T @ U`, `T @ &U`, `T @ U`
+* `&T @ U` =>  `T @= &U`, `T @= U`, `&T @ &U`, `T @ &U`, `T @ U`
+* `T @ &U` => `T @= &U`, `T @= U`, `&T @ &U`, `&T @ U`, `T @ U`
+* `&T @ &U` =>  `T @= &U`, `T @= U`, `&T @ U`, `T @ &U`, `T @ U`
 
 # Example
 
@@ -35,7 +38,7 @@ use std::ops::*;
 # #[derive(Clone, Default)]
 # struct A<T>(T);
 
-impl<'a, M> AddAssign<&'a A<M>> for A<M>
+impl<M> AddAssign<&A<M>> for A<M>
 where
     for<'x> &'x M: Add<Output = M>,
 {
@@ -44,57 +47,62 @@ where
     }
 }
 #[allow(clippy::extra_unused_lifetimes)]
-impl<'a, M> AddAssign<A<M>> for A<M>
+impl<M> AddAssign<A<M>> for A<M>
 where
     for<'x> &'x M: Add<Output = M>,
 {
     fn add_assign(&mut self, rhs: A<M>) {
-        self.add_assign(&rhs);
+        let rhs = &rhs;
+        self.add_assign(rhs);
     }
 }
-impl<'a, M> Add<&'a A<M>> for &'a A<M>
+impl<M> Add<&A<M>> for &A<M>
 where
     for<'x> &'x M: Add<Output = M>,
     A<M>: Clone,
 {
     type Output = A<M>;
-    fn add(self, rhs: &'a A<M>) -> Self::Output {
-        let mut out = self.clone();
-        out.add_assign(rhs);
-        out
+    fn add(self, rhs: &A<M>) -> Self::Output {
+        let mut lhs = self.clone();
+        lhs.add_assign(rhs);
+        lhs
     }
 }
-impl<'a, M> Add<A<M>> for &'a A<M>
+impl<M> Add<A<M>> for &A<M>
 where
     for<'x> &'x M: Add<Output = M>,
     A<M>: Clone,
 {
     type Output = A<M>;
     fn add(self, rhs: A<M>) -> Self::Output {
-        let mut out = self.clone();
-        out.add_assign(&rhs);
-        out
+        let mut lhs = self.clone();
+        let rhs = &rhs;
+        lhs.add_assign(rhs);
+        lhs
     }
 }
-impl<'a, M> Add<&'a A<M>> for A<M>
+impl<M> Add<&A<M>> for A<M>
 where
     for<'x> &'x M: Add<Output = M>,
 {
-    type Output = Self;
-    fn add(mut self, rhs: &'a A<M>) -> Self::Output {
-        self.add_assign(rhs);
-        self
+    type Output = A<M>;
+    fn add(self, rhs: &A<M>) -> Self::Output {
+        let mut lhs = self;
+        lhs.add_assign(rhs);
+        lhs
     }
 }
 #[allow(clippy::extra_unused_lifetimes)]
-impl<'a, M> Add<A<M>> for A<M>
+impl<M> Add<A<M>> for A<M>
 where
     for<'x> &'x M: Add<Output = M>,
 {
-    type Output = Self;
-    fn add(mut self, rhs: A<M>) -> Self::Output {
-        self.add_assign(&rhs);
-        self
+    type Output = A<M>;
+    fn add(self, rhs: A<M>) -> Self::Output {
+        let mut lhs = self;
+        let rhs = &rhs;
+        lhs.add_assign(rhs);
+        lhs
     }
 }
 ```

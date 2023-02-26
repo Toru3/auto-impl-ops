@@ -7,6 +7,7 @@ struct A<T>(T);
 #[derive(Clone, Default)]
 struct B(i32);
 
+// from assign_ref
 #[auto_ops]
 impl<'a, M> AddAssign<&'a A<M>> for A<M>
 where
@@ -70,6 +71,7 @@ impl<'a> AddAssign<&'a B> for B {
     }
 }
 
+// from ref_ref
 #[auto_ops]
 impl<M> Mul for &A<M>
 where
@@ -82,6 +84,7 @@ where
     }
 }
 
+// from val_ref
 #[auto_ops]
 impl<M> Div<&A<M>> for A<M>
 where
@@ -91,6 +94,139 @@ where
     type Output = Self;
     fn div(self, other: &Self) -> Self::Output {
         A(&self.0 / &other.0)
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitAndAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitAndAssign<&'x M>,
+{
+    fn bitand_assign(&mut self, other: &Self) {
+        self.0 &= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitOrAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitOrAssign<&'x M>,
+{
+    fn bitor_assign(&mut self, other: &Self) {
+        self.0 |= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> BitXorAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> BitXorAssign<&'x M>,
+{
+    fn bitxor_assign(&mut self, other: &Self) {
+        self.0 ^= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> ShlAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> ShlAssign<&'x M>,
+{
+    fn shl_assign(&mut self, other: &Self) {
+        self.0 <<= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<'a, M> ShrAssign<&'a A<M>> for A<M>
+where
+    M: Sized + for<'x> ShrAssign<&'x M>,
+{
+    fn shr_assign(&mut self, other: &Self) {
+        self.0 >>= &other.0;
+    }
+}
+
+#[auto_ops]
+impl<M> ShlAssign<u8> for A<M>
+where
+    M: Sized + ShlAssign<u8>,
+{
+    fn shl_assign(&mut self, other: u8) {
+        self.0 <<= other;
+    }
+}
+
+#[auto_ops]
+impl<M> ShrAssign<u8> for A<M>
+where
+    M: Sized + ShrAssign<u8>,
+{
+    fn shr_assign(&mut self, other: u8) {
+        self.0 >>= other;
+    }
+}
+
+#[derive(Clone, Default)]
+struct C<T>(T);
+
+#[auto_ops(val_val, ref_val)]
+impl<T: AddAssign> AddAssign for C<T> {
+    fn add_assign(&mut self, other: Self) {
+        self.0 += other.0;
+    }
+}
+#[auto_ops(val_ref, ref_ref)]
+impl<T> AddAssign<&C<T>> for C<T>
+where
+    T: for<'x> AddAssign<&'x T>,
+{
+    fn add_assign(&mut self, other: &Self) {
+        self.0 += &other.0;
+    }
+}
+
+#[derive(Clone, Default)]
+struct D<T>(T);
+
+// from val_val
+#[auto_ops]
+impl<T> Add for D<T>
+where
+    T: Add<Output = T>,
+{
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        D(self.0 + other.0)
+    }
+}
+
+#[derive(Clone, Default)]
+struct E<T>(T);
+
+// from assign_val
+#[auto_ops]
+impl<T> AddAssign<&E<T>> for E<T>
+where
+    T: for<'x> AddAssign<&'x T>,
+{
+    fn add_assign(&mut self, other: &Self) {
+        self.0 += &other.0;
+    }
+}
+
+#[derive(Clone, Default)]
+struct F<T>(T);
+
+// from ref_val
+#[auto_ops]
+impl<'a, T> Add<F<T>> for &'a F<T>
+where
+    for<'x> &'x T: Add<T, Output = T>,
+{
+    type Output = F<T>;
+    fn add(self, other: F<T>) -> F<T> {
+        F(&self.0 + other.0)
     }
 }
 
