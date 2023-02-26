@@ -29,8 +29,8 @@ test:
     - cargo clippy --workspace --all-targets $FEATURES -- -D warnings
     # テストを実行し結果をJUnit形式で出力
     - cargo test --lib --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
-    - cargo test --doc --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
-    - cargo test --examples --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
+    - cargo test --doc --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > doc.xml
+    - cargo test --examples --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > example.xml
   cache:
     - key: "rustup-$RUST_VERSION"
       paths:
@@ -48,9 +48,13 @@ test:
     when: always
     paths:
       - lib.xml
+      - doc.xml
+      - example.xml
     reports:
       junit:
         - lib.xml
+        - doc.xml
+        - example.xml
   variables:
     CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
   parallel:
