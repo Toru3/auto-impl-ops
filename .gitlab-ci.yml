@@ -1,4 +1,4 @@
-image: "rust:latest"
+image: "rustlang/rust:nightly"
 
 test:
   stage: test
@@ -14,7 +14,6 @@ test:
     - fi
     # ツールのインストール
     - rustup toolchain install "$RUST_VERSION" --component rustfmt clippy
-    - rustup install nightly
     - rustup default "$RUST_VERSION"
     # 現在のversionの表示
     - rustup --version && cargo --version
