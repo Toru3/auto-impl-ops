@@ -23,7 +23,7 @@ test:
     - else
     -     time cargo +nightly update -Z minimal-versions
     - fi
-    - cargo fetch # ソースコードのダウンロード
+    - cargo +nightly fetch # ソースコードのダウンロード
     - cargo fmt --all -- --check --verbose # フォーマットチェック
     - cargo clippy --workspace --all-targets $FEATURES -- -D warnings
     # テストを実行し結果をJUnit形式で出力
@@ -59,7 +59,7 @@ test:
         - doc.xml
         - example.xml
   variables:
-    CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL: "sparse"
   parallel:
     matrix:
       - RUST_VERSION:
