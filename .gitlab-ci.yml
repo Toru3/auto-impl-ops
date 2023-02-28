@@ -60,6 +60,8 @@ test:
         - example.xml
   variables:
     CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
+    http_proxy: "http://10.113.64.1:3128/"
+    https_proxy: "http://10.113.64.1:3128/"
   parallel:
     matrix:
       - RUST_VERSION:
