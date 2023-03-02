@@ -184,6 +184,44 @@ impl<'a> Generator<'a> {
             }
         }
     }
+    fn gen_output(&self) -> Result<Type> {
+        let rr_self_type = remove_reference(self.self_type);
+        if self.source_op.0.is_assign() {
+            Ok(rr_self_type.clone())
+        } else {
+            let v = self
+                .implement
+                .items
+                .iter()
+                .filter_map(|x| {
+                    if let ImplItem::Type(x) = x {
+                        Some(x)
+                    } else {
+                        None
+                    }
+                })
+                .filter_map(|x| {
+                    if x.ident == "Output" {
+                        Some(&x.ty)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            if let [x] = v[..] {
+                if x == &parse_quote!(Self) {
+                    Ok(rr_self_type.clone())
+                } else {
+                    Ok(x.clone())
+                }
+            } else {
+                Err(Error::new(
+                    Span::call_site(),
+                    "`type Output =` is not found or multiple",
+                ))
+            }
+        }
+    }
     fn generate(&self, op: Operate) -> Result<TokenStream> {
         if op.0.is_assign() && op.1 {
             return Err(Error::new(
@@ -218,9 +256,9 @@ impl<'a> Generator<'a> {
                 }
             });
         } else {
-            let rr_self_type = remove_reference(self.self_type);
+            let output_type = self.gen_output()?;
             work.items.push(parse_quote! {
-                type Output = #rr_self_type;
+                type Output = #output_type;
             });
             let preamble_lhs = Self::gen_lhs(self.source_op, op);
             let source_fn_name = self.source_op.0.to_func_ident();

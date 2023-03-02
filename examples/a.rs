@@ -230,4 +230,30 @@ where
     }
 }
 
+struct Vector2<T> {
+    x: T,
+    y: T,
+}
+struct Matrix2<T> {
+    v00: T,
+    v01: T,
+    v10: T,
+    v11: T,
+}
+
+#[auto_ops(ref_ref, ref_val, val_ref, val_val)]
+impl<'a, T> Mul<&'a Vector2<T>> for &'a Matrix2<T>
+where
+    T: Add<Output = T>,
+    for<'x> &'x T: Mul<Output = T>,
+{
+    type Output = Vector2<T>;
+    fn mul(self, other: &'a Vector2<T>) -> Self::Output {
+        Vector2 {
+            x: &self.v00 * &other.x + &self.v01 * &other.y,
+            y: &self.v10 * &other.x + &self.v11 * &other.y,
+        }
+    }
+}
+
 fn main() {}

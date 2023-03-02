@@ -1,6 +1,6 @@
 [package]
 name = "auto-impl-ops"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Toru3 <ryuutet@gmail.com>"]
 edition = "2021"
 description = "semi-automatic implementation proc-macro for binary operations"
