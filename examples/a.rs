@@ -256,4 +256,15 @@ where
     }
 }
 
+#[auto_ops(ref_ref, ref_val, val_ref, val_val)]
+impl<M> Mul<C<M>> for &A<M>
+where
+    for<'x> &'x M: Mul<Output = M>,
+{
+    type Output = D<M>;
+    fn mul(self, other: C<M>) -> Self::Output {
+        D(&self.0 * &other.0)
+    }
+}
+
 fn main() {}
