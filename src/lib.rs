@@ -437,6 +437,16 @@ fn auto_ops_impl(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     auto_ops_impl_inner(attrs, tokens).unwrap_or_else(Error::into_compile_error)
 }
 
+/// semi-automatic implementation for binary operations
+///
+/// `#[auto_ops]` implements all other operations.  
+/// `#[auto_ops(assign_ref, ref_val)]` implements `T @= &U` and `&T @ U`.
+/// * `assign_ref` implements `T @= &U`.
+/// * `assign_val` implements `T @= U`.
+/// * `ref_ref` implements `&T @ &U`.
+/// * `ref_val` implements `&T @ U`.
+/// * `val_ref` implements `T @ &U`.
+/// * `val_val` implements `T @ U`.
 #[proc_macro_attribute]
 pub fn auto_ops(
     attrs: proc_macro::TokenStream,
