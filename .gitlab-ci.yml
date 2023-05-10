@@ -11,8 +11,6 @@ test:
     -     ln -s /usr/local/cargo/env $CARGO_HOME/env
     - fi
     # ツールのインストール
-    - rustup toolchain install "$RUST_VERSION" --component rustfmt clippy
-    - rustup install nightly
     - rustup default "$RUST_VERSION"
     # 現在のversionの表示
     - rustup --version && cargo --version
