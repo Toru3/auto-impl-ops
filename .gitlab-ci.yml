@@ -25,10 +25,7 @@ test:
     - cargo fetch # ソースコードのダウンロード
     - cargo fmt --all -- --check --verbose # フォーマットチェック
     - cargo clippy --workspace --all-targets $FEATURES -- -D warnings
-    # テストを実行し結果をJUnit形式で出力
-    - cargo test --lib --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > lib.xml
-    - cargo test --doc --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > doc.xml
-    - cargo test --examples --workspace $FEATURES -- -Z unstable-options --format=junit --report-time > example.xml
+    - cargo test --workspace $FEATURES
   cache:
     - key: "crates-$USE_MINIMAL_VERSIONS"
       paths:
