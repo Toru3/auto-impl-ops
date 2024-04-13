@@ -1,10 +1,9 @@
 #![doc = include_str!("../README.md")]
 #[cfg(test)]
 mod tests;
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
 use std::str::FromStr;
 use strum::{Display, EnumString};
 use syn::{parse::Parser, punctuated::Punctuated, spanned::Spanned, *};
