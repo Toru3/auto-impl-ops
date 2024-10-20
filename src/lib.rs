@@ -93,7 +93,7 @@ struct Generator<'a> {
     self_type: &'a Type,
     rhs_type: &'a Type,
 }
-impl<'a> Generator<'a> {
+impl Generator<'_> {
     fn get_arg_type(is_ref_: bool, target: &Type, source: &Type) -> Type {
         if !is_ref_ {
             remove_reference(target).clone()
