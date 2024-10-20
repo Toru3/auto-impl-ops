@@ -9,7 +9,7 @@ struct B(i32);
 
 // from assign_ref
 #[auto_ops]
-impl<'a, M> AddAssign<&'a A<M>> for A<M>
+impl<M> AddAssign<&A<M>> for A<M>
 where
     M: Sized + Zero + for<'x> AddAssign<&'x M>,
 {
@@ -19,7 +19,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, G> SubAssign<&'a A<G>> for A<G>
+impl<G> SubAssign<&A<G>> for A<G>
 where
     G: Sized + Zero + for<'x> SubAssign<&'x G>,
 {
@@ -29,7 +29,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, K> RemAssign<&'a A<K>> for A<K>
+impl<K> RemAssign<&A<K>> for A<K>
 where
     K: Sized
         + Clone
@@ -45,7 +45,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, R> MulAssign<&'a R> for A<R>
+impl<R> MulAssign<&R> for A<R>
 where
     R: Sized + Zero + for<'x> MulAssign<&'x R>,
 {
@@ -55,7 +55,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, R> DivAssign<&'a R> for A<R>
+impl<R> DivAssign<&R> for A<R>
 where
     R: Sized + Zero + for<'x> DivAssign<&'x R>,
 {
@@ -65,7 +65,7 @@ where
 }
 
 #[auto_ops]
-impl<'a> AddAssign<&'a B> for B {
+impl AddAssign<&B> for B {
     fn add_assign(&mut self, other: &Self) {
         self.0 += &other.0;
     }
@@ -98,7 +98,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> BitAndAssign<&'a A<M>> for A<M>
+impl<M> BitAndAssign<&A<M>> for A<M>
 where
     M: Sized + for<'x> BitAndAssign<&'x M>,
 {
@@ -108,7 +108,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> BitOrAssign<&'a A<M>> for A<M>
+impl<M> BitOrAssign<&A<M>> for A<M>
 where
     M: Sized + for<'x> BitOrAssign<&'x M>,
 {
@@ -118,7 +118,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> BitXorAssign<&'a A<M>> for A<M>
+impl<M> BitXorAssign<&A<M>> for A<M>
 where
     M: Sized + for<'x> BitXorAssign<&'x M>,
 {
@@ -128,7 +128,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> ShlAssign<&'a A<M>> for A<M>
+impl<M> ShlAssign<&A<M>> for A<M>
 where
     M: Sized + for<'x> ShlAssign<&'x M>,
 {
@@ -138,7 +138,7 @@ where
 }
 
 #[auto_ops]
-impl<'a, M> ShrAssign<&'a A<M>> for A<M>
+impl<M> ShrAssign<&A<M>> for A<M>
 where
     M: Sized + for<'x> ShrAssign<&'x M>,
 {
@@ -220,7 +220,7 @@ struct F<T>(T);
 
 // from ref_val
 #[auto_ops]
-impl<'a, T> Add<F<T>> for &'a F<T>
+impl<T> Add<F<T>> for &F<T>
 where
     for<'x> &'x T: Add<T, Output = T>,
 {
@@ -242,13 +242,13 @@ struct Matrix2<T> {
 }
 
 #[auto_ops(ref_ref, ref_val, val_ref, val_val)]
-impl<'a, T> Mul<&'a Vector2<T>> for &'a Matrix2<T>
+impl<T> Mul<&Vector2<T>> for &Matrix2<T>
 where
     T: Add<Output = T>,
     for<'x> &'x T: Mul<Output = T>,
 {
     type Output = Vector2<T>;
-    fn mul(self, other: &'a Vector2<T>) -> Self::Output {
+    fn mul(self, other: &Vector2<T>) -> Self::Output {
         Vector2 {
             x: &self.v00 * &other.x + &self.v01 * &other.y,
             y: &self.v10 * &other.x + &self.v11 * &other.y,
