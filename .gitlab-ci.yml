@@ -16,7 +16,7 @@ test:
     - rustup --version && cargo --version
     # Cargo.lock の更新
     - if [ "${USE_MINIMAL_VERSIONS:-false}" = "false" ]; then
-    -     time cargo update
+    -     time cargo +nightly update
     - else
     -     time cargo +nightly update -Z minimal-versions
     - fi
