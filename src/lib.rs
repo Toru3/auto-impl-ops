@@ -23,7 +23,7 @@ fn copy_reference(target: &Type, source: &Type) -> Type {
     match source {
         Type::Reference(inner) => {
             let mut out = inner.clone();
-            out.elem = Box::new(target.clone());
+            *out.elem = target.clone();
             Type::Reference(out)
         }
         _ => target.clone(),
